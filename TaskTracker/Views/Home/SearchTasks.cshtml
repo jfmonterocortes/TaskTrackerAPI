@@ -1,0 +1,50 @@
+﻿@{
+    ViewData["Title"] = "Search Tasks";
+}
+
+<div class="container">
+    <h1>Search Tasks</h1>
+
+    <div class="search-section">
+        <input type="text" id="searchInput" placeholder="Type title, assignee or ID..." />
+        <button onclick="performSearch()">Search</button>
+        <button onclick="clearSearch()">Clear</button>
+    </div>
+
+    <ul id="results"></ul>
+</div>
+
+@section Scripts {
+<script>
+const API_BASE = 'https://localhost:7134/api/tasks';
+
+async function performSearch() {
+    const term = document.getElementById('searchInput').value.trim().toLowerCase();
+    if (!term) { document.getElementById('results').innerHTML = ''; return; }
+
+    const res = await fetch(API_BASE);
+    if (!res.ok) { alert('Failed to load tasks'); return; }
+    const tasks = await res.json();
+
+    const filtered = tasks.filter(t =>
+        (t.title && t.title.toLowerCase().includes(term)) ||
+        (t.assignee && t.assignee.toLowerCase().includes(term)) ||
+        (t.id && t.id.toLowerCase().includes(term))
+    );
+
+    document.getElementById('results').innerHTML = filtered.map(t => `
+        <li>
+            <strong>${t.title}</strong> — ${t.assignee || 'Unassigned'} — ${t.priority || 'None'}
+            <button onclick="viewTask('${t.id}')">View</button>
+        </li>
+    `).join('');
+}
+
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('results').innerHTML = '';
+}
+
+function viewTask(id) { window.location.href = '/Home/ViewTask?id=' + id; }
+</script>
+}

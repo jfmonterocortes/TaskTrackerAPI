@@ -1,0 +1,46 @@
+﻿@{
+    ViewData["Title"] = "View Task";
+}
+
+<div class="container">
+    <h1>Task Details</h1>
+
+    <div id="taskDetails">
+        <p><strong>ID:</strong> <span id="id"></span></p>
+        <p><strong>Title:</strong> <span id="title"></span></p>
+        <p><strong>Description:</strong> <span id="description"></span></p>
+        <p><strong>Assignee:</strong> <span id="assignee"></span></p>
+        <p><strong>Priority:</strong> <span id="priority"></span></p>
+        <p><strong>Created:</strong> <span id="created"></span></p>
+    </div>
+
+    <button onclick="goBack()">Back</button>
+</div>
+
+@section Scripts {
+<script>
+const API_BASE = 'https://localhost:7134/api/tasks';
+const id = new URLSearchParams(window.location.search).get('id');
+
+document.addEventListener('DOMContentLoaded', () => loadTask(id));
+
+async function loadTask(id) {
+    try {
+        const res = await fetch(`${API_BASE}/${id}`);
+        if (!res.ok) return alert('Task not found (status ' + res.status + ')');
+        const t = await res.json();
+
+        document.getElementById('id').innerText = t.id;
+        document.getElementById('title').innerText = t.title;
+        document.getElementById('description').innerText = t.description || '(none)';
+        document.getElementById('assignee').innerText = t.assignee || '(none)';
+        document.getElementById('priority').innerText = t.priority || '(none)';
+        document.getElementById('created').innerText = new Date(t.created).toLocaleString();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+function goBack() { window.location.href = '/Home/Index'; }
+</script>
+}

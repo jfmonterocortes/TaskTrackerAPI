@@ -1,0 +1,124 @@
+﻿@{
+    ViewData["Title"] = "All Tasks";
+}
+
+<div class="container">
+    <h1>All Tasks</h1>
+
+    <div class="search-section">
+        <input type="text" id="searchInput" placeholder="Search by Title, Assignee, or ID" />
+        <button onclick="searchTasks()">Search</button>
+        <button onclick="clearSearch()">Clear</button>
+    </div>
+
+    <table id="tasksTable" class="tasks-table" aria-label="List of tasks">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Assignee</th>
+                <th>Priority</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tasksTableBody"></tbody>
+    </table>
+
+    <div id="loadingMessage">Loading...</div>
+    <div id="noTasksMessage" class="hidden">No tasks found. <a href="/Home/CreateTask">Create one!</a></div>
+</div>
+
+@section Scripts {
+<script>
+const API_BASE = 'https://localhost:7134/api/tasks'; // backend HTTPS port
+
+document.addEventListener('DOMContentLoaded', loadAllTasks);
+
+async function loadAllTasks() {
+    try {
+        showLoading(true);
+        const res = await fetch(API_BASE);
+        if (!res.ok) throw new Error('Status ' + res.status);
+        const tasks = await res.json();
+        displayTasks(tasks);
+    } catch (err) {
+        alert('Error loading tasks: ' + err.message);
+    }
+}
+
+function displayTasks(tasks) {
+    const tbody = document.getElementById('tasksTableBody');
+    const noMsg = document.getElementById('noTasksMessage');
+
+    if (!tasks || tasks.length === 0) {
+        tbody.innerHTML = '';
+        noMsg.classList.remove('hidden');
+        showLoading(false);
+        return;
+    }
+
+    noMsg.classList.add('hidden');
+    tbody.innerHTML = tasks.map(t => `
+        <tr>
+            <td>${t.id}</td>
+            <td>${escapeHtml(t.title)}</td>
+            <td>${t.assignee || 'Unassigned'}</td>
+            <td>${t.priority || 'None'}</td>
+            <td>
+                <button onclick="viewTask('${t.id}')">View</button>
+                <button onclick="editTask('${t.id}')">Edit</button>
+                <button onclick="deleteTask('${t.id}')">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+
+    showLoading(false);
+}
+
+async function deleteTask(id) {
+    if (!confirm('Delete this task?')) return;
+    const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+    if (res.status === 204) {
+        loadAllTasks();
+    } else if (res.status === 404) {
+        alert('Task not found');
+    } else {
+        alert('Failed to delete (status ' + res.status + ')');
+    }
+}
+
+function viewTask(id) { window.location.href = `/Home/ViewTask?id=${id}`; }
+function editTask(id) { window.location.href = `/Home/CreateTask?id=${id}`; }
+
+function searchTasks() {
+    const term = document.getElementById('searchInput').value.trim().toLowerCase();
+    if (!term) return loadAllTasks();
+    fetch(API_BASE).then(r => r.json()).then(tasks => {
+        const filtered = tasks.filter(t =>
+            (t.title && t.title.toLowerCase().includes(term)) ||
+            (t.assignee && t.assignee.toLowerCase().includes(term)) ||
+            (t.id && t.id.toLowerCase().includes(term))
+        );
+        displayTasks(filtered);
+    }).catch(err => alert('Search error: ' + err.message));
+}
+
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    loadAllTasks();
+}
+
+function showLoading(show) {
+    document.getElementById('loadingMessage').style.display = show ? 'block' : 'none';
+}
+
+function escapeHtml(unsafe) {
+    return unsafe?.toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;") || '';
+}
+</script>
+}

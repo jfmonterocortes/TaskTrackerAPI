@@ -1,0 +1,78 @@
+﻿@{
+    ViewData["Title"] = "Create or Edit Task";
+}
+
+<div class="container">
+    <h1 id="pageTitle">Create Task</h1>
+
+    <form id="taskForm" onsubmit="submitTask(event)">
+        <label for="title">Title</label>
+        <input type="text" id="title" required minlength="3" placeholder="Enter task title" />
+
+        <label for="description">Description</label>
+        <textarea id="description" placeholder="Enter description (optional)"></textarea>
+
+        <label for="assignee">Assignee</label>
+        <input type="text" id="assignee" placeholder="Enter assignee (optional)" />
+
+        <label for="priority">Priority</label>
+        <select id="priority">
+            <option value="">None</option>
+            <option>Low</option>
+            <option>Medium</option>
+            <option>High</option>
+            <option>Critical</option>
+        </select>
+
+        <button type="submit" id="submitBtn">Create</button>
+        <button type="button" onclick="cancel()">Cancel</button>
+    </form>
+</div>
+
+@section Scripts {
+<script>
+const API_BASE = 'https://localhost:7134/api/tasks';
+const id = new URLSearchParams(window.location.search).get('id');
+
+document.addEventListener('DOMContentLoaded', () => { if (id) loadTask(id); });
+
+async function loadTask(id) {
+    const res = await fetch(`${API_BASE}/${id}`);
+    if (!res.ok) return alert('Task not found (status ' + res.status + ')');
+    const t = await res.json();
+    title.value = t.title;
+    description.value = t.description || '';
+    assignee.value = t.assignee || '';
+    priority.value = t.priority || '';
+    document.getElementById('pageTitle').innerText = 'Edit Task';
+    document.getElementById('submitBtn').innerText = 'Update';
+}
+
+async function submitTask(e) {
+    e.preventDefault();
+    const task = {
+        title: title.value.trim(),
+        description: description.value.trim(),
+        assignee: assignee.value.trim(),
+        priority: priority.value
+    };
+
+    const res = await fetch(id ? `${API_BASE}/${id}` : API_BASE, {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task)
+    });
+
+    if (res.ok || res.status === 201) {
+        alert(id ? 'Task updated' : 'Task created');
+        window.location.href = '/Home/Index';
+    } else {
+        let msg = res.statusText;
+        try { const err = await res.json(); msg = err.error || msg; } catch {}
+        alert('Failed: ' + msg);
+    }
+}
+
+function cancel() { window.location.href = '/Home/Index'; }
+</script>
+}
