@@ -30,7 +30,7 @@
 
 @section Scripts {
 <script>
-const API_BASE = 'https://localhost:7134/api/tasks'; // backend HTTPS port
+const API_BASE = window.appConfig?.apiBaseUrl || 'https://localhost:7134/api/v1/tasks';
 
 document.addEventListener('DOMContentLoaded', loadAllTasks);
 
@@ -97,7 +97,7 @@ function searchTasks() {
         const filtered = tasks.filter(t =>
             (t.title && t.title.toLowerCase().includes(term)) ||
             (t.assignee && t.assignee.toLowerCase().includes(term)) ||
-            (t.id && t.id.toLowerCase().includes(term))
+            (String(t.id ?? '').toLowerCase().includes(term))
         );
         displayTasks(filtered);
     }).catch(err => alert('Search error: ' + err.message));

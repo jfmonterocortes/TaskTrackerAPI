@@ -1,4 +1,8 @@
-﻿<!DOCTYPE html>
+@inject IConfiguration Configuration
+@{
+    var apiBaseUrl = Configuration["ApiSettings:BaseUrl"] ?? "https://localhost:7134/api/v1/tasks";
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -29,6 +33,11 @@
     </footer>
 
     <script src="~/js/app.js" asp-append-version="true"></script>
+    <script>
+        window.appConfig = {
+            apiBaseUrl: '@apiBaseUrl'
+        };
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

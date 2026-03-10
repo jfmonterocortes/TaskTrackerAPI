@@ -2,7 +2,8 @@
 // TaskItem.cs
 // Data model representing a task in the system
 // Defines properties: Id, Title, Description, Assignee, Priority, Dates
-// Used for both database storage and API data transferusing System;
+// Used for both in-memory storage and API data transfer
+using System;
 
 namespace TaskTracker.Models
 {

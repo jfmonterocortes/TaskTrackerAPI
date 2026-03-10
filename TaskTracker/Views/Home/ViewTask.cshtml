@@ -19,7 +19,7 @@
 
 @section Scripts {
 <script>
-const API_BASE = 'https://localhost:7134/api/tasks';
+const API_BASE = window.appConfig?.apiBaseUrl || 'https://localhost:7134/api/v1/tasks';
 const id = new URLSearchParams(window.location.search).get('id');
 
 document.addEventListener('DOMContentLoaded', () => loadTask(id));
@@ -35,7 +35,10 @@ async function loadTask(id) {
         document.getElementById('description').innerText = t.description || '(none)';
         document.getElementById('assignee').innerText = t.assignee || '(none)';
         document.getElementById('priority').innerText = t.priority || '(none)';
-        document.getElementById('created').innerText = new Date(t.created).toLocaleString();
+        const createdValue = t.created || t.createdDate;
+        document.getElementById('created').innerText = createdValue
+            ? new Date(createdValue).toLocaleString()
+            : '(none)';
     } catch (err) {
         alert('Error: ' + err.message);
     }

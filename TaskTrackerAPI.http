@@ -1,0 +1,39 @@
+﻿@tasktracker_api = https://localhost:7134
+@tasktracker_mvc_api = https://localhost:7145
+
+### Health - Standalone API
+GET {{tasktracker_api}}/api/health
+
+### Health (v1) - Standalone API
+GET {{tasktracker_api}}/api/v1/health
+
+### List tasks (v1) - Standalone API
+GET {{tasktracker_api}}/api/v1/tasks
+
+### Create task (v1) - Standalone API
+POST {{tasktracker_api}}/api/v1/tasks
+Content-Type: application/json
+
+{
+  "title": "Prepare sprint review",
+  "description": "Collect demo notes",
+  "assignee": "Alex",
+  "priority": "High"
+}
+
+### Update task (v1) - Standalone API
+PUT {{tasktracker_api}}/api/v1/tasks/1
+Content-Type: application/json
+
+{
+  "title": "Prepare sprint review",
+  "description": "Collect demo notes and blockers",
+  "assignee": "Alex",
+  "priority": "Medium"
+}
+
+### Health - MVC app API surface
+GET {{tasktracker_mvc_api}}/api/health
+
+### List tasks (v1) - MVC app API surface
+GET {{tasktracker_mvc_api}}/api/v1/tasks

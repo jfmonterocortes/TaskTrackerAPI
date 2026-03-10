@@ -23,8 +23,26 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
+app.Use(async (context, next) =>
+{
+    app.Logger.LogInformation("HTTP {Method} {Path}", context.Request.Method, context.Request.Path);
+    await next();
+});
 
 app.UseAuthorization();
+
+app.MapGet("/api/health", () => Results.Ok(new
+{
+    status = "Healthy",
+    service = "TaskTracker",
+    timestamp = DateTime.UtcNow
+}));
+app.MapGet("/api/v1/health", () => Results.Ok(new
+{
+    status = "Healthy",
+    service = "TaskTracker",
+    timestamp = DateTime.UtcNow
+}));
 
 app.MapControllerRoute(
     name: "default",

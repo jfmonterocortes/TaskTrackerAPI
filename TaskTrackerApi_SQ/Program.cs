@@ -12,6 +12,7 @@ DESCRIPTION   :
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Hosting;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
@@ -22,10 +23,7 @@ using System.Text.Json.Serialization;
 // -------------------------------------------------------------
 var builder = WebApplication.CreateBuilder(args);
 
-// Enable CORS
 builder.Services.AddCors();
-
-// Make enums (Priority) return as strings in JSON ("High", "Low", etc.)
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -33,112 +31,146 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 
 var app = builder.Build();
 
-// Enable CORS for all requests
 app.UseCors(p => p
     .AllowAnyOrigin()
     .AllowAnyMethod()
     .AllowAnyHeader());
 
-// Redirect HTTP ? HTTPS
 app.UseHttpsRedirection();
 
-/* ---------------------------------------------------------------------------
-ROUTE         : GET /
-FUNCTION      : Landing page (check if backend is running)
----------------------------------------------------------------------------- */
+app.Use(async (context, next) =>
+{
+    app.Logger.LogInformation("HTTP {Method} {Path}", context.Request.Method, context.Request.Path);
+    await next();
+});
+
 app.MapGet("/", () => "TaskTracker API running");
 
-/* ============================== ENDPOINTS ================================= */
-
-// POST /api/tasks  -> Create
-app.MapPost("/api/tasks", (CreateTaskRequest clientRequest) =>
+app.MapGet("/api/health", () => Results.Ok(new
 {
-    if (string.IsNullOrWhiteSpace(clientRequest.Title) || clientRequest.Title.Length < 3)
-        return Results.BadRequest(new { error = "Title must be at least 3 characters long." });
+    status = "Healthy",
+    service = "TaskTrackerApi_SQ",
+    timestamp = DateTime.UtcNow
+}));
 
-    var service = new InMemoryTaskService();
-
-    var task = new TaskModel
-    {
-        Title = clientRequest.Title.Trim(),
-        Description = string.IsNullOrWhiteSpace(clientRequest.Description) ? null : clientRequest.Description.Trim(),
-        Assignee = string.IsNullOrWhiteSpace(clientRequest.Assignee) ? null : clientRequest.Assignee.Trim(),
-        Priority = Enum.TryParse<Priority>(clientRequest.Priority, true, out var p) ? p : null
-    };
-
-    var created = service.Create(task);
-    return Results.Created($"/api/tasks/{created.Id}", created);
-});
-
-// PUT /api/tasks/{id}  -> Update
-app.MapPut("/api/tasks/{id:int}", (int id, UpdateTaskRequest clientRequest) =>
+app.MapGet("/api/v1/health", () => Results.Ok(new
 {
-    if (string.IsNullOrWhiteSpace(clientRequest.Title) || clientRequest.Title.Length < 3)
-        return Results.BadRequest(new { error = "Title must be at least 3 characters long." });
+    status = "Healthy",
+    service = "TaskTrackerApi_SQ",
+    timestamp = DateTime.UtcNow
+}));
 
-    Priority? parsedPriority = null;
-    if (!string.IsNullOrWhiteSpace(clientRequest.Priority) &&
-        Enum.TryParse<Priority>(clientRequest.Priority, true, out var p))
-    {
-        parsedPriority = p;
-    }
-
-    var service = new InMemoryTaskService();
-    var updated = service.Update(
-        id,
-        clientRequest.Title.Trim(),
-        string.IsNullOrWhiteSpace(clientRequest.Description) ? null : clientRequest.Description.Trim(),
-        string.IsNullOrWhiteSpace(clientRequest.Assignee) ? null : clientRequest.Assignee.Trim(),
-        parsedPriority
-    );
-
-    if (updated is null)
-        return Results.NotFound(new { error = "Task not found." });
-
-    return Results.Ok(updated);
-});
-
-// PATCH /api/tasks/{id}/assign  -> Assign or change assignee
-app.MapPatch("/api/tasks/{id:int}/assign", (int id, AssignTaskRequest clientRequest) =>
-{
-    if (string.IsNullOrWhiteSpace(clientRequest.Assignee))
-        return Results.BadRequest(new { error = "Assignee name cannot be empty." });
-
-    var service = new InMemoryTaskService();
-    var task = service.GetById(id);
-    if (task is null)
-        return Results.NotFound(new { error = "Task not found." });
-
-    task.Assignee = clientRequest.Assignee.Trim();
-    return Results.Ok(task);
-});
-
-// GET /api/tasks/{id}  -> Get by Id
-app.MapGet("/api/tasks/{id:int}", (int id) =>
-{
-    var service = new InMemoryTaskService();
-    var task = service.GetById(id);
-    return task is null
-        ? Results.NotFound(new { error = "Task not found." })
-        : Results.Ok(task);
-});
-
-// DELETE /api/tasks/{id}  -> Delete
-app.MapDelete("/api/tasks/{id:int}", (int id) =>
-{
-    var service = new InMemoryTaskService();
-    var removed = service.Delete(id);
-    return removed ? Results.NoContent() : Results.NotFound(new { error = "Task not found." });
-});
-
-// GET /api/tasks  -> List all
-app.MapGet("/api/tasks", () =>
-{
-    var service = new InMemoryTaskService();
-    return Results.Ok(service.GetAll());
-});
+MapTaskEndpoints(app.MapGroup("/api/tasks"));
+MapTaskEndpoints(app.MapGroup("/api/v1/tasks"));
 
 app.Run();
+
+static void MapTaskEndpoints(RouteGroupBuilder group)
+{
+    group.MapPost("", (CreateTaskRequest clientRequest) =>
+    {
+        if (string.IsNullOrWhiteSpace(clientRequest.Title) || clientRequest.Title.Length < 3)
+        {
+            return Results.BadRequest(new { error = "Title must be at least 3 characters long." });
+        }
+
+        var priorityParse = ParsePriority(clientRequest.Priority);
+        if (!priorityParse.IsValid)
+        {
+            return Results.BadRequest(new { error = "Priority must be Low, Medium, High, or Critical." });
+        }
+
+        var service = new InMemoryTaskService();
+        var task = new TaskModel
+        {
+            Title = clientRequest.Title.Trim(),
+            Description = string.IsNullOrWhiteSpace(clientRequest.Description) ? null : clientRequest.Description.Trim(),
+            Assignee = string.IsNullOrWhiteSpace(clientRequest.Assignee) ? null : clientRequest.Assignee.Trim(),
+            Priority = priorityParse.Value
+        };
+
+        var created = service.Create(task);
+        return Results.Created($"/api/tasks/{created.Id}", created);
+    });
+
+    group.MapPut("/{id:int}", (int id, UpdateTaskRequest clientRequest) =>
+    {
+        if (string.IsNullOrWhiteSpace(clientRequest.Title) || clientRequest.Title.Length < 3)
+        {
+            return Results.BadRequest(new { error = "Title must be at least 3 characters long." });
+        }
+
+        var priorityParse = ParsePriority(clientRequest.Priority);
+        if (!priorityParse.IsValid)
+        {
+            return Results.BadRequest(new { error = "Priority must be Low, Medium, High, or Critical." });
+        }
+
+        var service = new InMemoryTaskService();
+        var updated = service.Update(
+            id,
+            clientRequest.Title.Trim(),
+            string.IsNullOrWhiteSpace(clientRequest.Description) ? null : clientRequest.Description.Trim(),
+            string.IsNullOrWhiteSpace(clientRequest.Assignee) ? null : clientRequest.Assignee.Trim(),
+            priorityParse.Value
+        );
+
+        return updated is null
+            ? Results.NotFound(new { error = "Task not found." })
+            : Results.Ok(updated);
+    });
+
+    group.MapPatch("/{id:int}/assign", (int id, AssignTaskRequest clientRequest) =>
+    {
+        if (string.IsNullOrWhiteSpace(clientRequest.Assignee))
+        {
+            return Results.BadRequest(new { error = "Assignee name cannot be empty." });
+        }
+
+        var service = new InMemoryTaskService();
+        var task = service.GetById(id);
+        if (task is null)
+        {
+            return Results.NotFound(new { error = "Task not found." });
+        }
+
+        task.Assignee = clientRequest.Assignee.Trim();
+        return Results.Ok(task);
+    });
+
+    group.MapGet("/{id:int}", (int id) =>
+    {
+        var service = new InMemoryTaskService();
+        var task = service.GetById(id);
+        return task is null
+            ? Results.NotFound(new { error = "Task not found." })
+            : Results.Ok(task);
+    });
+
+    group.MapDelete("/{id:int}", (int id) =>
+    {
+        var service = new InMemoryTaskService();
+        var removed = service.Delete(id);
+        return removed ? Results.NoContent() : Results.NotFound(new { error = "Task not found." });
+    });
+
+    group.MapGet("", () =>
+    {
+        var service = new InMemoryTaskService();
+        return Results.Ok(service.GetAll());
+    });
+}
+
+static (bool IsValid, Priority? Value) ParsePriority(string? priority)
+{
+    if (string.IsNullOrWhiteSpace(priority))
+    {
+        return (true, null);
+    }
+
+    var isValid = Enum.TryParse<Priority>(priority, true, out var parsed);
+    return isValid ? (true, parsed) : (false, null);
+}
 
 /* =============================== MODELS =================================== */
 
@@ -146,7 +178,6 @@ public enum Priority { Low, Medium, High, Critical }
 
 public class TaskModel
 {
-
     public int Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
@@ -157,7 +188,6 @@ public class TaskModel
 
 public class InMemoryTaskService
 {
-
     private static readonly ConcurrentDictionary<int, TaskModel> Store = new();
     private static int _nextId = 1;
 
@@ -174,6 +204,7 @@ public class InMemoryTaskService
     public TaskModel? Update(int id, string title, string? description, string? assignee, Priority? priority)
     {
         if (!Store.TryGetValue(id, out var existing)) return null;
+
         existing.Title = title;
         existing.Description = description;
         existing.Assignee = assignee;
