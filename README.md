@@ -80,5 +80,3 @@ Use `TaskTrackerAPI.http` for ready-to-run local examples.
 ### Search Tasks
 ![Search tasks view](docs/images/search-tasks.png)
 
-## Why This Project Stands Out
-This project presents a realistic student-scale system with clear boundaries between UI and API, versioned endpoints, health checks, request logging, and configuration-driven integration. It focuses on engineering clarity and maintainability rather than production complexity.
